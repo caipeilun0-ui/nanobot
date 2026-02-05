@@ -32,7 +32,7 @@ class LiteLLMProvider(LLMProvider):
             (api_base and "openrouter" in api_base)
         )
         
-        # Track if using custom endpoint (vLLM, etc.)
+        # Track if using custom endpoint (vLLM, Vector Engine, etc.)
         self.is_vllm = bool(api_base) and not self.is_openrouter
         
         # Configure LiteLLM based on provider
@@ -96,10 +96,10 @@ class LiteLLMProvider(LLMProvider):
         ):
             model = f"zai/{model}"
         
-        # For vLLM, use hosted_vllm/ prefix per LiteLLM docs
-        # Convert openai/ prefix to hosted_vllm/ if user specified it
-        if self.is_vllm:
-            model = f"hosted_vllm/{model}"
+        # For OpenAI-compatible endpoints (vLLM, Vector Engine, etc.)
+        # Use openai/ prefix for compatibility
+        if self.is_vllm and not model.startswith("openai/"):
+            model = f"openai/{model}"
         
         # For Gemini, ensure gemini/ prefix if not already present
         if "gemini" in model.lower() and not model.startswith("gemini/"):
