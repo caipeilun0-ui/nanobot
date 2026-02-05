@@ -65,17 +65,15 @@ class MCPWebSearchTool(Tool):
         return await self._fallback_response(query)
     
     async def _try_duckduckgo_html(self, query: str, count: int) -> str:
-        """Search using DuckDuckGo HTML scraping (more reliable than JSON API)."""
+        """Search using DuckDuckGo HTML scraping (using POST method)."""
         try:
             import httpx
-            from urllib.parse import quote
             
-            # Use DuckDuckGo HTML endpoint with lite search
-            search_url = f"https://lite.duckduckgo.com/lite/?q={quote(query)}"
-            
+            # DuckDuckGo Lite uses POST method
             async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    search_url,
+                response = await client.post(
+                    "https://lite.duckduckgo.com/lite/",
+                    data={"q": query, "kl": "us-en"},
                     headers={
                         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
                     },
@@ -100,21 +98,29 @@ class MCPWebSearchTool(Tool):
         import re
         results = []
         
-        # Pattern for DDG lite results: <a href="url">title</a>
-        # DDG lite format is: <tr><td>..</td><td><a href="...">title</a>...</td></tr>
-        pattern = r'<a href="([^"]+)"\s*(?:class="[^"]*")?>([^<]+)</a>'
+        # DDG Lite format: look for result blocks with links
+        # Results are typically in <tr> rows with title and URL
+        # Pattern: <a href="URL">title</a> where URL is an http(s) link
         
-        matches = re.finditer(pattern, html)
+        pattern = r'<a[^>]*href="([^"]*)"[^>]*>([^<]+)</a>'
+        
         seen_urls = set()
+        matches = re.finditer(pattern, html)
         
         for match in matches:
-            url = match.group(1)
+            url = match.group(1).strip()
             title = match.group(2).strip()
             
             # Skip duplicates and irrelevant results
             if url in seen_urls or not title or len(title) < 3:
                 continue
-            if "duckduckgo" in url.lower() or "lite.duckduckgo" in url.lower():
+            
+            # Only include proper http(s) URLs (external results)
+            if not url.startswith('http://') and not url.startswith('https://'):
+                continue
+            
+            # Skip DuckDuckGo internal links
+            if 'duckduckgo.com' in url.lower():
                 continue
             
             seen_urls.add(url)
