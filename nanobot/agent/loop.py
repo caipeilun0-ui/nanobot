@@ -15,6 +15,7 @@ from nanobot.agent.tools.registry import ToolRegistry
 from nanobot.agent.tools.filesystem import ReadFileTool, WriteFileTool, EditFileTool, ListDirTool
 from nanobot.agent.tools.shell import ExecTool
 from nanobot.agent.tools.web import WebSearchTool, WebFetchTool
+from nanobot.agent.tools.mcp_search import MCPWebSearchTool
 from nanobot.agent.tools.message import MessageTool
 from nanobot.agent.tools.spawn import SpawnTool
 from nanobot.agent.subagent import SubagentManager
@@ -42,8 +43,9 @@ class AgentLoop:
         max_iterations: int = 20,
         brave_api_key: str | None = None,
         exec_config: "ExecToolConfig | None" = None,
+        search_config: "WebSearchConfig | None" = None,
     ):
-        from nanobot.config.schema import ExecToolConfig
+        from nanobot.config.schema import ExecToolConfig, WebSearchConfig
         self.bus = bus
         self.provider = provider
         self.workspace = workspace
@@ -51,6 +53,7 @@ class AgentLoop:
         self.max_iterations = max_iterations
         self.brave_api_key = brave_api_key
         self.exec_config = exec_config or ExecToolConfig()
+        self.search_config = search_config or WebSearchConfig()
         
         self.context = ContextBuilder(workspace)
         self.sessions = SessionManager(workspace)
@@ -62,6 +65,7 @@ class AgentLoop:
             model=self.model,
             brave_api_key=brave_api_key,
             exec_config=self.exec_config,
+            search_config=self.search_config,
         )
         
         self._running = False
@@ -82,8 +86,14 @@ class AgentLoop:
             restrict_to_workspace=self.exec_config.restrict_to_workspace,
         ))
         
-        # Web tools
-        self.tools.register(WebSearchTool(api_key=self.brave_api_key))
+        # Web tools - choose search provider based on config
+        if self.search_config.provider.lower() == "brave" and self.search_config.api_key:
+            # Use Brave Search API
+            self.tools.register(WebSearchTool(api_key=self.search_config.api_key, max_results=self.search_config.max_results))
+        else:
+            # Use Google MCP (default, no API key needed)
+            self.tools.register(MCPWebSearchTool(max_results=self.search_config.max_results))
+        
         self.tools.register(WebFetchTool())
         
         # Message tool

@@ -15,6 +15,7 @@ from nanobot.agent.tools.registry import ToolRegistry
 from nanobot.agent.tools.filesystem import ReadFileTool, WriteFileTool, ListDirTool
 from nanobot.agent.tools.shell import ExecTool
 from nanobot.agent.tools.web import WebSearchTool, WebFetchTool
+from nanobot.agent.tools.mcp_search import MCPWebSearchTool
 
 
 class SubagentManager:
@@ -34,14 +35,16 @@ class SubagentManager:
         model: str | None = None,
         brave_api_key: str | None = None,
         exec_config: "ExecToolConfig | None" = None,
+        search_config: "WebSearchConfig | None" = None,
     ):
-        from nanobot.config.schema import ExecToolConfig
+        from nanobot.config.schema import ExecToolConfig, WebSearchConfig
         self.provider = provider
         self.workspace = workspace
         self.bus = bus
         self.model = model or provider.get_default_model()
         self.brave_api_key = brave_api_key
         self.exec_config = exec_config or ExecToolConfig()
+        self.search_config = search_config or WebSearchConfig()
         self._running_tasks: dict[str, asyncio.Task[None]] = {}
     
     async def spawn(
@@ -104,7 +107,11 @@ class SubagentManager:
                 timeout=self.exec_config.timeout,
                 restrict_to_workspace=self.exec_config.restrict_to_workspace,
             ))
-            tools.register(WebSearchTool(api_key=self.brave_api_key))
+            # Web tools - choose search provider based on config
+            if self.search_config.provider.lower() == "brave" and self.search_config.api_key:
+                tools.register(WebSearchTool(api_key=self.search_config.api_key, max_results=self.search_config.max_results))
+            else:
+                tools.register(MCPWebSearchTool(max_results=self.search_config.max_results))
             tools.register(WebFetchTool())
             
             # Build messages with subagent-specific prompt

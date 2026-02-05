@@ -65,7 +65,8 @@ class GatewayConfig(BaseModel):
 
 class WebSearchConfig(BaseModel):
     """Web search tool configuration."""
-    api_key: str = ""  # Brave Search API key
+    provider: str = "mcp"  # "brave" or "mcp" (Google Model Context Protocol)
+    api_key: str = ""  # Brave Search API key (only needed if provider="brave")
     max_results: int = 5
 
 
